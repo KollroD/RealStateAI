@@ -1,0 +1,19 @@
+# Автоматическая нормализация переносов строк
+* text=auto eol=lf
+
+# Явно указываем, что скрипты всегда должны быть с LF
+*.py text eol=lf
+*.sh text eol=lf
+Dockerfile text eol=lf
+docker-compose.yml text eol=lf
+
+# Исключаем бинарные и тяжелые файлы из текстового сравнения (diff)
+*.csv binary
+*.xlsx binary
+*.parquet binary
+*.cbm binary
+*.pt binary
+*.pkl binary
+
+# Jupyter ноутбуки (чтобы статистика языка в GitHub не сходила с ума)
+*.ipynb linguist-generated=true

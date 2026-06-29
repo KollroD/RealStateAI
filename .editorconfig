@@ -1,7 +1,7 @@
-# Этот файл является корневым
+# root
 root = true
 
-# Правила для всех файлов
+# rules
 [*]
 charset = utf-8
 end_of_line = lf
@@ -10,16 +10,16 @@ trim_trailing_whitespace = true
 indent_style = space
 indent_size = 4
 
-# Python файлы (строго 4 пробела)
+# py files
 [*.py]
 indent_style = space
 indent_size = 4
 
-# Файлы конфигураций и Web (JSON, YAML, HTML) - лучше 2 пробела
+# cfg, web files
 [*.{json,yml,yaml,html,css,js}]
 indent_style = space
 indent_size = 2
 
-# Makefile требует использовать настоящие табы
+# makefile
 [Makefile]
 indent_style = tab

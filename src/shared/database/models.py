@@ -63,4 +63,10 @@ class MLDataset(Base):
     label_is_agency: Mapped[bool] = mapped_column(Boolean)  # True - "Agency"
     label_is_fake: Mapped[bool] = mapped_column(Boolean)  # True - "Fake"
     label_hidden_fees: Mapped[Optional[bool]] = mapped_column(Boolean)
+    total_area: Mapped[Optional[float]] = mapped_column(Float)
+    floor: Mapped[Optional[int]] = mapped_column(Integer)
+    total_floors: Mapped[Optional[int]] = mapped_column(Integer)
+    deposit: Mapped[Optional[int]] = mapped_column(Integer)
+    renovation: Mapped[Optional[str]] = mapped_column(String(50))
+    metadata_json: Mapped[Optional[dict]] = mapped_column(JSON)
     created_at: Mapped[datetime] = mapped_column(server_default=func.now())

@@ -15,8 +15,18 @@ def extract_number(text: str):
     return None
 
 
+def extract_int(text: str):
+    """Как extract_number, но округляет до int (для integer-колонок БД)."""
+    value = extract_number(text)
+    return int(round(value)) if value is not None else None
+
+
 def map_apartment_data(raw_json: dict) -> dict:
-    item = raw_json.get("item")
+    # Эндпоинт /items/ads возвращает {analytics, buyerItem, ...}.
+    # Данные карточки лежат под buyerItem.item (id/title/price/rentTermsParams),
+    # а параметры (комнаты/площадь/этаж) — под buyerItem.paramsDto.items.
+    buyer = raw_json.get("buyerItem") or {}
+    item = buyer.get("item") or {}
     if not item:
         return {}
 
@@ -38,7 +48,10 @@ def map_apartment_data(raw_json: dict) -> dict:
         "metadata_json": {},
     }
 
-    params_items = item.get("paramsDto", {}).get("items", [])
+    # Параметры могут лежать как в buyerItem.paramsDto, так и в item.paramsDto
+    params_items = buyer.get("paramsDto", {}).get("items", []) or item.get(
+        "paramsDto", {}
+    ).get("items", [])
 
     for param in params_items:
         title = param.get("title")
@@ -46,7 +59,7 @@ def map_apartment_data(raw_json: dict) -> dict:
 
         # Чистим числа для метрик
         if title == "Количество комнат":
-            apartment["rooms"] = extract_number(desc)
+            apartment["rooms"] = extract_int(desc)
         elif title == "Общая площадь":
             apartment["total_area"] = extract_number(desc)
         elif title == "Площадь кухни":
@@ -73,7 +86,7 @@ def map_apartment_data(raw_json: dict) -> dict:
         desc = term.get("description")
 
         if title == "Залог":
-            apartment["deposit"] = extract_number(desc)
+            apartment["deposit"] = extract_int(desc)
         elif title == "Комиссия":
             apartment["commission_percent"] = extract_number(desc)
 
@@ -96,4 +109,6 @@ def map_apartment_data(raw_json: dict) -> dict:
     metadata = {k: v for k, v in apartment.items() if k not in known_keys}
     apartment["metadata_json"] = metadata
 
-    return apartment
+    # Возвращаем только колонки MLDataset + metadata_json, иначе
+    # MLDataset(**clean_data) упадёт с TypeError на лишних ключах.
+    return {k: apartment.get(k) for k in known_keys}

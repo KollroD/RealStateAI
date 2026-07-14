@@ -6,7 +6,7 @@ async def fetch_catalog_urls(client, category_id: int, location_id: int) -> list
     current_page = 1
     max_page = 1
 
-    while current_page <= 1:
+    while current_page <= max_page:
         print(f"Парсим страницу каталога {current_page} из {max_page}...")
 
         url = f"https://www.avito.ru/web/1/js/items?categoryId={category_id}&locationId={location_id}&p={current_page}&params%5B201%5D=1060&params%5B504%5D=5256&params%5B349941936%5D=129623&verticalCategoryId=1&rootCategoryId=4&localPriority=0&updateListOnly=true"

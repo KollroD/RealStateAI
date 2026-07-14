@@ -12,6 +12,7 @@ from sqlalchemy import (
 )
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 from sqlalchemy.sql import func
+from sqlalchemy.dialects.postgresql import JSONB
 
 
 class Base(DeclarativeBase):
@@ -57,6 +58,8 @@ class Listing(Base):
 class MLDataset(Base):
     __tablename__ = "ml_dataset"
     id: Mapped[str] = mapped_column(String(255), primary_key=True)
+    avito_url: Mapped[str] = mapped_column(String(512))
+    images_path: Mapped[Optional[dict]] = mapped_column(JSON)
     text_description: Mapped[str] = mapped_column(Text)
     price: Mapped[int] = mapped_column(Integer)
     rooms: Mapped[Optional[int]] = mapped_column(Integer)
@@ -68,5 +71,5 @@ class MLDataset(Base):
     total_floors: Mapped[Optional[int]] = mapped_column(Integer)
     deposit: Mapped[Optional[int]] = mapped_column(Integer)
     renovation: Mapped[Optional[str]] = mapped_column(String(50))
-    metadata_json: Mapped[Optional[dict]] = mapped_column(JSON)
+    metadata_json: Mapped[Optional[dict]] = mapped_column(JSONB)
     created_at: Mapped[datetime] = mapped_column(server_default=func.now())

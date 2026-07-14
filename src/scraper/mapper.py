@@ -2,10 +2,8 @@ import re
 
 
 def extract_number(text: str):
-    """Вытаскивает первое число (int или float) из строки."""
     if not text:
         return None
-    # Меняем запятые на точки для дробных чисел и ищем цифры
     match = re.search(r"[\d\.,]+", text.replace(",", "."))
     if match:
         try:
@@ -16,48 +14,61 @@ def extract_number(text: str):
 
 
 def extract_int(text: str):
-    """Как extract_number, но округляет до int (для integer-колонок БД)."""
     value = extract_number(text)
     return int(round(value)) if value is not None else None
 
 
-def map_apartment_data(raw_json: dict) -> dict:
-    # Эндпоинт /items/ads возвращает {analytics, buyerItem, ...}.
-    # Данные карточки лежат под buyerItem.item (id/title/price/rentTermsParams),
-    # а параметры (комнаты/площадь/этаж) — под buyerItem.paramsDto.items.
+def clean_html(raw_html: str) -> str:
+    """Вырезает <p>, <br> и прочий мусор из описания"""
+    if not raw_html:
+        return ""
+    clean_text = re.sub(r"<[^>]+>", " ", raw_html)
+    return " ".join(clean_text.split())
+
+
+def map_apartment_data(raw_json: dict, url: str) -> dict:
     buyer = raw_json.get("buyerItem") or {}
     item = buyer.get("item") or {}
     if not item:
         return {}
 
+    # --- ВЫТАСКИВАЕМ ССЫЛКИ НА ФОТО ---
+    # Берем размер 640x480, он идеален для баланса качество/вес[cite: 1]
+    raw_images = item.get("imageUrls", [])  # [cite: 1]
+    image_links = []
+    for img in raw_images:
+        if "640x480" in img:  # [cite: 1]
+            image_links.append(img["640x480"])  # [cite: 1]
+
     apartment = {
         "id": str(item.get("id")),
-        "text_description": item.get("title"),
+        "avito_url": url,  # <--- Пойдет в отдельную колонку
+        "text_description": item.get("title"),  # <--- Короткий заголовок
         "price": item.get("price"),
-        "rooms": None,  # заполняешь в цикле params
-        "total_area": None,  # заполняешь в цикле params
-        "floor": None,  # заполняешь в цикле params
-        "total_floors": None,  # заполняешь в цикле params
-        "deposit": None,  # заполняешь в rent_terms
-        "renovation": None,  # заполняешь в цикле params
-        # Дефолтные значения для ML-разметки
+        "rooms": None,
+        "total_area": None,
+        "floor": None,
+        "total_floors": None,
+        "deposit": None,
+        "renovation": None,
         "label_is_agency": False,
         "label_is_fake": False,
         "label_hidden_fees": False,
-        # Сюда скидываешь всё, что не влезло в колонки
+        "raw_image_links": image_links,
         "metadata_json": {},
+        "Описание": clean_html(item.get("description", "")),
     }
 
-    # Параметры могут лежать как в buyerItem.paramsDto, так и в item.paramsDto
+    # 1. Параметры квартиры (Интернет и ТВ и т.д.)
     params_items = buyer.get("paramsDto", {}).get("items", []) or item.get(
         "paramsDto", {}
     ).get("items", [])
-
     for param in params_items:
         title = param.get("title")
         desc = param.get("description")
+        if not title or not desc:
+            continue
 
-        # Чистим числа для метрик
         if title == "Количество комнат":
             apartment["rooms"] = extract_int(desc)
         elif title == "Общая площадь":
@@ -67,31 +78,49 @@ def map_apartment_data(raw_json: dict) -> dict:
         elif title == "Жилая площадь":
             apartment["living_area"] = extract_number(desc)
         elif title == "Этаж":
-            floors = re.findall(r"\d+", desc) if desc else []
+            floors = re.findall(r"\d+", desc)
             apartment["floor"] = int(floors[0]) if len(floors) > 0 else None
             apartment["total_floors"] = int(floors[1]) if len(floors) > 1 else None
-
-        # Категориальные признаки оставляем строками, просто чистим пробелы
-        elif title in ["Санузел", "Мебель", "Техника"]:
-            apartment[title] = desc.replace("\xa0", " ").strip() if desc else None
         elif title == "Ремонт":
-            apartment["renovation"] = (
-                desc.replace("\xa0", " ").strip() if desc else None
-            )
+            apartment["renovation"] = desc.replace("\xa0", " ").strip()
+        else:
+            apartment[title] = desc.replace("\xa0", " ").strip()
 
-    # Достаем залог и комиссию из условий аренды
+    # 2. Условия аренды
     rent_terms = item.get("rentTermsParams", {}).get("data", {}).get("items", [])
     for term in rent_terms:
         title = term.get("title")
         desc = term.get("description")
+        if not title or not desc:
+            continue
 
         if title == "Залог":
             apartment["deposit"] = extract_int(desc)
         elif title == "Комиссия":
             apartment["commission_percent"] = extract_number(desc)
+        else:
+            apartment[title] = desc.replace("\xa0", " ").strip()
 
+    # 3. Правила
+    rules_items = item.get("rulesParams", {}).get("data", {}).get("items", [])
+    for rule in rules_items:
+        title = rule.get("title")
+        desc = rule.get("description")
+        if title and desc:
+            apartment[title] = desc.replace("\xa0", " ").strip()
+
+    # 4. О доме
+    house_items = item.get("houseParams", {}).get("data", {}).get("items", [])
+    for house_param in house_items:
+        title = house_param.get("title")
+        desc = house_param.get("description")
+        if title and desc:
+            apartment[f"Дом: {title}"] = desc.replace("\xa0", " ").strip()
+
+    # ДОБАВИЛИ avito_url В ИЗВЕСТНЫЕ КЛЮЧИ КОЛОНОК БД
     known_keys = [
         "id",
+        "avito_url",
         "text_description",
         "price",
         "rooms",
@@ -104,11 +133,12 @@ def map_apartment_data(raw_json: dict) -> dict:
         "deposit",
         "renovation",
         "metadata_json",
+        "raw_image_links",
     ]
 
     metadata = {k: v for k, v in apartment.items() if k not in known_keys}
+
+    # Фикс кодировки: кириллица запишется читаемым текстом
     apartment["metadata_json"] = metadata
 
-    # Возвращаем только колонки MLDataset + metadata_json, иначе
-    # MLDataset(**clean_data) упадёт с TypeError на лишних ключах.
     return {k: apartment.get(k) for k in known_keys}

@@ -49,6 +49,8 @@ data/
 pgdata/            # Если локальная БД смонтирована в папку
 kafkadata/
 redisdata/
+infra/
+
 *.log
 
 # ========================
@@ -58,3 +60,8 @@ redisdata/
 .vscode/
 .DS_Store
 Thumbs.db
+
+# ========================
+# images/data
+# ========================
+src/scraper/media/

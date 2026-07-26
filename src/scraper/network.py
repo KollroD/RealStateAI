@@ -21,7 +21,7 @@ class HttpClient:
             "Referer": "https://www.avito.ru/",
         }
 
-    async def get_json(self, url: str, max_retries: int = 3) -> dict:
+    async def get_json(self, url: str, max_retries: int = 5) -> dict:
         for attempt in range(max_retries):
             try:
                 # impersonate="chrome120" делает TLS-отпечаток 1 в 1 как у Хрома
@@ -37,11 +37,14 @@ class HttpClient:
                         print(f"[429] Авито притормозил. Ждем {wait_time} сек...")
                         await asyncio.sleep(wait_time)
                         continue
+                    elif response.status_code == 404:
+                        print("Объявление, видимо, снято с продажи, пропускаем...")
+                        return {}
                     else:
                         print(f"Статус {response.status_code} при запросе {url}")
 
             except Exception as e:
                 print(f"Ошибка [{type(e).__name__}]: {str(e)}")
 
-            await asyncio.sleep(random.uniform(2.0, 5.0))
+            await asyncio.sleep(random.uniform(2.0, 8.0))
         return {}

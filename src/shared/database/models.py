@@ -10,9 +10,10 @@ from sqlalchemy import (
     JSON,
     ForeignKey,
 )
-from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
+from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 from sqlalchemy.sql import func
 from sqlalchemy.dialects.postgresql import JSONB
+from pgvector.sqlalchemy import Vector
 
 
 class Base(DeclarativeBase):
@@ -58,18 +59,41 @@ class Listing(Base):
 class MLDataset(Base):
     __tablename__ = "ml_dataset"
     id: Mapped[str] = mapped_column(String(255), primary_key=True)
+    seller_id: Mapped[Optional[str]] = mapped_column(String(255))
     avito_url: Mapped[str] = mapped_column(String(512))
     images_path: Mapped[Optional[dict]] = mapped_column(JSON)
+    is_duplicate: Mapped[bool] = mapped_column(Boolean, default=False)
+    duplicate_of_id: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
     text_description: Mapped[str] = mapped_column(Text)
     price: Mapped[int] = mapped_column(Integer)
     rooms: Mapped[Optional[int]] = mapped_column(Integer)
-    label_is_agency: Mapped[bool] = mapped_column(Boolean)  # True - "Agency"
-    label_is_fake: Mapped[bool] = mapped_column(Boolean)  # True - "Fake"
+    is_ai_generated: Mapped[Optional[bool]] = mapped_column(
+        Boolean, server_default="false"
+    )
+    label_is_agency: Mapped[bool] = mapped_column(Boolean)
+    label_is_fake: Mapped[bool] = mapped_column(Boolean)
     label_hidden_fees: Mapped[Optional[bool]] = mapped_column(Boolean)
     total_area: Mapped[Optional[float]] = mapped_column(Float)
     floor: Mapped[Optional[int]] = mapped_column(Integer)
     total_floors: Mapped[Optional[int]] = mapped_column(Integer)
     deposit: Mapped[Optional[int]] = mapped_column(Integer)
     renovation: Mapped[Optional[str]] = mapped_column(String(50))
+    address: Mapped[Optional[str]] = mapped_column(String(512))
+    latitude: Mapped[Optional[float]] = mapped_column(Float)
+    longitude: Mapped[Optional[float]] = mapped_column(Float)
     metadata_json: Mapped[Optional[dict]] = mapped_column(JSONB)
     created_at: Mapped[datetime] = mapped_column(server_default=func.now())
+    images: Mapped[list["ApartmentImage"]] = relationship(
+        back_populates="apartment", cascade="all, delete-orphan"
+    )
+
+
+class ApartmentImage(Base):
+    __tablename__ = "apartment_images"
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    apartment_id: Mapped[str] = mapped_column(
+        ForeignKey("ml_dataset.id", ondelete="CASCADE")
+    )
+    image_path: Mapped[str] = mapped_column(String(512), nullable=False, unique=True)
+    embedding = mapped_column(Vector(2048))
+    apartment: Mapped["MLDataset"] = relationship(back_populates="images")

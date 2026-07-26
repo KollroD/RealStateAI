@@ -40,10 +40,19 @@ def map_apartment_data(raw_json: dict, url: str) -> dict:
         if "640x480" in img:  # [cite: 1]
             image_links.append(img["640x480"])  # [cite: 1]
 
+    geo_data = item.get("geo", {})
+    coords = geo_data.get("coords", {})
+    seller_data = item.get("seller", {})
+    profile_url = seller_data.get("profileUrl", "")
+    seller_id = None
+    if "/user/" in profile_url:
+        seller_id = profile_url.split("/user/")[1].split("/")[0]
+
     apartment = {
         "id": str(item.get("id")),
-        "avito_url": url,  # <--- Пойдет в отдельную колонку
-        "text_description": item.get("title"),  # <--- Короткий заголовок
+        "avito_url": url,
+        "text_description": item.get("title"),
+        "seller_id": seller_id,
         "price": item.get("price"),
         "rooms": None,
         "total_area": None,
@@ -56,6 +65,9 @@ def map_apartment_data(raw_json: dict, url: str) -> dict:
         "label_hidden_fees": False,
         "raw_image_links": image_links,
         "metadata_json": {},
+        "address": geo_data.get("address"),
+        "latitude": coords.get("lat"),
+        "longitude": coords.get("lng"),
         "Описание": clean_html(item.get("description", "")),
     }
 
@@ -134,6 +146,9 @@ def map_apartment_data(raw_json: dict, url: str) -> dict:
         "renovation",
         "metadata_json",
         "raw_image_links",
+        "address",
+        "latitude",
+        "longitude",
     ]
 
     metadata = {k: v for k, v in apartment.items() if k not in known_keys}
